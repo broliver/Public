@@ -1,0 +1,51 @@
+name: Deploy
+
+# Builds a static site from a separate source repository and deploys it to
+# GitHub Pages as an artifact. No site content is stored in this repository.
+on:
+  workflow_dispatch:
+  # sent by the source repository on every push to its main branch
+  repository_dispatch:
+    types: [source-updated]
+  # redeploy when this workflow itself changes
+  push:
+    branches: [main]
+    paths: ['.github/workflows/deploy.yml']
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          repository: broliver/Lua27
+          path: src
+          # fine-grained personal access token with read access to the source repo
+          token: ${{ secrets.SOURCE_TOKEN }}
+
+      - name: Upload site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: src/site
+          # artifact is deleted after one day; the live site is unaffected
+          retention-days: 1
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
